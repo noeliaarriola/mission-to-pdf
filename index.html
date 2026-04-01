@@ -640,7 +640,7 @@ p,li{text-wrap:pretty}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       Copiar
     </button>
-    <button class="btn btn-primary btn-sm" onclick="window.print()">
+    <button class="btn btn-primary btn-sm" onclick="exportPDF()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       PDF
     </button>
@@ -734,7 +734,7 @@ p,li{text-wrap:pretty}
           </div>
           <div class="field">
             <label>Período / Edição</label>
-            <input id="fPeriod" type="text" placeholder="Ex: Março 2025 · Nº 12" value="Março 2025" oninput="render()">
+            <input id="fPeriod" type="text" placeholder="Ex: Março 2026 · Nº 12" value="Março 2026" oninput="render()">
             <div class="field-hint">Aparece no canto superior direito do boletim.</div>
           </div>
         </div>
@@ -867,6 +867,7 @@ p,li{text-wrap:pretty}
             <select id="fContribType" onchange="updateContribLabel();render()">
               <option value="pix">Pix</option>
               <option value="paypal">PayPal</option>
+              <option value="wise">Wise</option>
               <option value="link">Link (site / vaquinha)</option>
               <option value="outro">Outro</option>
             </select>
@@ -909,7 +910,7 @@ p,li{text-wrap:pretty}
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       Copiar texto
     </button>
-    <button class="btn btn-primary" onclick="window.print()">
+    <button class="btn btn-primary" onclick="exportPDF()">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
       Imprimir / PDF
     </button>
@@ -920,7 +921,7 @@ p,li{text-wrap:pretty}
   <main class="preview">
     <div class="preview-bar">
       <span class="preview-label">Prévia ao vivo</span>
-      <button class="btn btn-outline btn-sm" onclick="window.print()">
+      <button class="btn btn-outline btn-sm" onclick="exportPDF()">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
         Exportar PDF
       </button>
@@ -935,7 +936,7 @@ p,li{text-wrap:pretty}
 <!-- MOBILE BAR -->
 <div class="mobile-bar">
   <button class="btn btn-outline" onclick="copyText()">Copiar texto</button>
-  <button class="btn btn-primary" onclick="window.print()">Salvar PDF</button>
+  <button class="btn btn-primary" onclick="exportPDF()">Baixar PDF</button>
 </div>
 
 </div>
@@ -1122,28 +1123,38 @@ async function exportPDF(){
   btn.textContent='Gerando…';
   try{
     const el=document.getElementById('informativo');
-    const canvas=await html2canvas(el,{
-      scale:2,
+    // clone into body with no clipping constraints
+    const clone=el.cloneNode(true);
+    clone.style.cssText='position:fixed;left:-9999px;top:0;width:'+el.offsetWidth+'px;height:auto;overflow:visible;border-radius:0;box-shadow:none;z-index:-1;';
+    document.body.appendChild(clone);
+    // wait for images
+    await new Promise(function(r){setTimeout(r,80)});
+    const fullW=clone.scrollWidth;
+    const fullH=clone.scrollHeight;
+    const canvas=await html2canvas(clone,{
+      scale:2.5,
       useCORS:true,
       allowTaint:true,
       backgroundColor:'#ffffff',
       logging:false,
-      width:el.scrollWidth,
-      height:el.scrollHeight,
-      windowWidth:el.scrollWidth,
-      windowHeight:el.scrollHeight
+      width:fullW,
+      height:fullH,
+      scrollX:0,
+      scrollY:0,
+      windowWidth:fullW,
+      windowHeight:fullH+200
     });
-    const imgData=canvas.toDataURL('image/jpeg',1.0);
+    document.body.removeChild(clone);
+    const imgData=canvas.toDataURL('image/png');
     const {jsPDF}=window.jspdf;
-    // A4 width = 210mm, calculate height proportionally
     const pdfW=210;
-    const pdfH=(canvas.height*pdfW)/canvas.width;
+    const pdfH=Math.ceil((canvas.height/canvas.width)*pdfW);
     const pdf=new jsPDF({
-      orientation: pdfH>pdfW?'portrait':'landscape',
+      orientation:'portrait',
       unit:'mm',
-      format:[pdfW, pdfH]
+      format:[pdfW,pdfH]
     });
-    pdf.addImage(imgData,'JPEG',0,0,pdfW,pdfH,undefined,'FAST');
+    pdf.addImage(imgData,'PNG',0,0,pdfW,pdfH,undefined,'FAST');
     pdf.save('boletim-missao.pdf');
   }catch(e){
     alert('Erro ao gerar PDF: '+e.message);
@@ -1204,8 +1215,8 @@ function copyContrib(btn){
 function updateContribLabel(){
   var t=document.getElementById('fContribType');
   if(!t)return;
-  var labels={pix:'Chave Pix',paypal:'E-mail PayPal',link:'URL do link',outro:'Dado de contato'};
-  var hints={pix:'Aparece botão "Copiar" no boletim.',paypal:'Aparece botão "Copiar" com o e-mail.',link:'Aparece como link clicável no boletim.',outro:'Aparece botão "Copiar" no boletim.'};
+  var labels={pix:'Chave Pix',paypal:'E-mail PayPal',wise:'E-mail / telefone Wise',link:'URL do link',outro:'Dado de contato'};
+  var hints={pix:'Aparece botão "Copiar" no boletim.',paypal:'Aparece botão "Copiar" com o e-mail.',wise:'Aparece botão "Copiar" com o dado Wise.',link:'Aparece como link clicável no boletim.',outro:'Aparece botão "Copiar" no boletim.'};
   var lbl=document.getElementById('fContribKeyLabel');
   var hint=document.getElementById('fContribHint');
   if(lbl)lbl.textContent=labels[t.value]||'Chave';
@@ -1277,7 +1288,7 @@ function render(){
   const contribTypeEl=document.getElementById('fContribType');
   const contribType=contribTypeEl?contribTypeEl.value:'pix';
   const contribKey=gv('fContribKey');
-  const typeLabels={'pix':'Pix','paypal':'PayPal','link':'Link','outro':''};
+  const typeLabels={'pix':'Pix','paypal':'PayPal','wise':'Wise','link':'Link','outro':''};
   const typeLabel=typeLabels[contribType]||'';
   window._contribKey=contribKey;
   let contribHtml='';
@@ -1385,8 +1396,14 @@ function toast(msg){
 /* ── INIT ────────────────────────────────────────── */
 addBlock('Mensagem do campo',`Amados parceiros e apoiadores,\n\nCom gratidão ao Senhor, trazemos as novidades do campo. Neste mês, vimos Seu amor se derramar sobre as famílias da comunidade, abrindo portas que só Ele poderia abrir.\n\nDois novos grupos de estudo bíblico foram iniciados e já estamos vendo os primeiros frutos. Pedimos que continuem intercedendo por nós e pelas famílias sendo alcançadas.\n\nObrigado por cada oração e por cada oferta — vocês são parte essencial desta obra!`);
 render();
-
-
+// defer so browser paints first, then scroll to top and set step 1
+var _initLock=true;
+setTimeout(function(){_initLock=false;},600);
+requestAnimationFrame(function(){
+  var editorEl=document.getElementById('editor');
+  if(editorEl)editorEl.scrollTop=0;
+  setActiveStep(1);
+});
 
 // scroll spy
 (function(){
@@ -1394,6 +1411,7 @@ render();
   if(!editor)return;
   var stepBySecId={sec1:1,sec2:2,sec3:3,sec4:4,sec5:5,sec6:6,sec7extra:7,sec8contrib:8,sec9rodape:9};
   var obs=new IntersectionObserver(function(entries){
+    if(window._initLock)return;
     entries.forEach(function(e){
       if(e.isIntersecting){
         var sec=e.target.closest('[data-section]');
