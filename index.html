@@ -1132,19 +1132,37 @@ async function exportPDF(){
     document.body.appendChild(clone);
     // hide interactive-only elements in clone
     clone.querySelectorAll('.no-print').forEach(function(el){el.style.display='none';});
-    // force base64 images inline so dom-to-image captures them on iOS
-    clone.querySelectorAll('.icover').forEach(function(div){
-      var bg=div.style.backgroundImage;
-      if(bg&&bg!=='none'&&bg.indexOf('base64')!==-1){
-        // already inline base64 — ensure it's set as style directly
-        div.setAttribute('style', div.getAttribute('style')||'');
-      } else if(bg&&bg!=='none'){
-        // keep as is
-      }
-      // ensure dimensions are explicit for dom-to-image
-      var h=div.offsetHeight;
-      if(h>0) div.style.height=h+'px';
-    });
+    // pre-render cover images to canvas for iOS Safari compatibility
+    var icovers=Array.from(clone.querySelectorAll('.icover'));
+    for(var ci=0;ci<icovers.length;ci++){
+      var cdiv=icovers[ci];
+      var cbg=cdiv.style.backgroundImage||'';
+      var curl=cbg.replace(/^url\(["']?/,'').replace(/["']?\)$/,'');
+      if(!curl) continue;
+      var cdw=cdiv.offsetWidth||680;
+      var cdh=cdiv.offsetHeight||300;
+      // draw image into a canvas with cover crop, then replace background with canvas data
+      var preCanvas=document.createElement('canvas');
+      preCanvas.width=cdw; preCanvas.height=cdh;
+      var pctx=preCanvas.getContext('2d');
+      await new Promise(function(r){
+        var pi=new Image();
+        pi.onload=function(){
+          var s=Math.max(cdw/pi.width,cdh/pi.height);
+          var sw=cdw/s,sh=cdh/s;
+          var sx=(pi.width-sw)/2,sy=(pi.height-sh)/2;
+          pctx.drawImage(pi,sx,sy,sw,sh,0,0,cdw,cdh);
+          var cropped=preCanvas.toDataURL('image/jpeg',0.9);
+          cdiv.style.backgroundImage='url('+cropped+')';
+          cdiv.style.backgroundSize='100% 100%';
+          cdiv.style.backgroundPosition='center';
+          cdiv.style.height=cdh+'px';
+          r();
+        };
+        pi.onerror=function(){r();};
+        pi.src=curl;
+      });
+    }
     // wait for images
     await new Promise(function(r){setTimeout(r,80)});
     const fullW=clone.scrollWidth;
