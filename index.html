@@ -1135,7 +1135,7 @@ async function exportPDF(){
     // use footer bottom to avoid blank space
     const footer=clone.querySelector('.ifooter')||clone.querySelector('footer');
     const fullH=footer
-      ? Math.ceil(footer.getBoundingClientRect().bottom - clone.getBoundingClientRect().top + 8)
+      ? (footer.offsetTop + footer.offsetHeight + 2)
       : clone.scrollHeight;
     const canvas=await html2canvas(clone,{
       scale:2.5,
@@ -1254,7 +1254,7 @@ function render(){
   const ca=document.getElementById('cAccent').value;
   const vars='style="--ic:'+cp+';--ia:'+ca+'"';
 
-  const coverHtml=coverUrl?'<img class="icover vis" src="'+coverUrl+'" alt="Capa" width="680" height="280" loading="lazy">':'';
+  const coverHtml=coverUrl?'<div class="icover vis" style="background-image:url('+coverUrl+');background-size:cover;background-position:center;width:100%"></div>':'';
 
   let bodyHtml='';
   blocks.forEach(function(b,i){
