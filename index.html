@@ -1151,16 +1151,22 @@ async function exportPDF(){
     // trim bottom whitespace: scan rows from bottom until non-white pixel
     const ctx2=canvas.getContext('2d');
     const px=ctx2.getImageData(0,0,canvas.width,canvas.height).data;
-    let lastRow=canvas.height-1;
-    outer: for(let y=canvas.height-1;y>=0;y--){
+    // detect background color from bottom-right corner
+    const bgR=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4];
+    const bgG=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4+1];
+    const bgB=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4+2];
+    let lastRow=0;
+    for(let y=canvas.height-1;y>=0;y--){
+      let rowDiff=false;
       for(let x=0;x<canvas.width;x++){
         const i=(y*canvas.width+x)*4;
-        if(px[i]<245||px[i+1]<245||px[i+2]<245){lastRow=y;break outer;}
+        if(Math.abs(px[i]-bgR)>8||Math.abs(px[i+1]-bgG)>8||Math.abs(px[i+2]-bgB)>8){rowDiff=true;break;}
       }
+      if(rowDiff){lastRow=y;break;}
     }
     const trimmed=document.createElement('canvas');
     trimmed.width=canvas.width;
-    trimmed.height=lastRow+2;
+    trimmed.height=lastRow+1;
     trimmed.getContext('2d').drawImage(canvas,0,0);
     const imgData=trimmed.toDataURL('image/png');
     const {jsPDF}=window.jspdf;
@@ -1322,8 +1328,8 @@ function render(){
       +'</svg> Copiar</button>';
     contribHtml='<div class="icontrib">'
       +(contribMsg?'<div class="icontrib-msg">'+esc(contribMsg)+'</div>':'')
+      +(typeLabel?'<div class="icontrib-btn-row" style="margin-bottom:6px"><span class="icontrib-type">'+typeLabel+'</span></div>':'')
       +'<div class="icontrib-key-row">'
-      +(typeLabel?'<span class="icontrib-type">'+typeLabel+'</span>':'')
       +keyDisplay
       +'</div>'
       +(copyBtn?'<div class="icontrib-btn-row no-print">'+copyBtn+'</div>':'')
