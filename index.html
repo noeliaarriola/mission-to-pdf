@@ -490,7 +490,7 @@ p,li{text-wrap:pretty}
 .icontrib-btn-row{
   display:flex;justify-content:center;width:100%;
 }
-.icontrib-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;background:var(--ia,#8b5e3c);color:#fff;padding:3px 10px;border-radius:9999px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;line-height:1.4}
+.icontrib-type{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;background:var(--ia,#8b5e3c);color:#fff;padding:4px 12px;border-radius:9999px;flex-shrink:0;display:inline-block;line-height:1.6;box-sizing:border-box;vertical-align:middle;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .icontrib-key{font-size:15px;font-weight:700;color:#1c1c1e;font-family:monospace;word-break:break-all}
 .icontrib-copy{
   display:inline-flex;align-items:center;justify-content:center;gap:6px;
@@ -1133,10 +1133,7 @@ async function exportPDF(){
     await new Promise(function(r){setTimeout(r,80)});
     const fullW=clone.scrollWidth;
     // use footer bottom to avoid blank space
-    const footer=clone.querySelector('.ifooter')||clone.querySelector('footer');
-    const fullH=footer
-      ? (footer.offsetTop + footer.offsetHeight + 2)
-      : clone.scrollHeight;
+    const fullH=clone.scrollHeight;
     const canvas=await html2canvas(clone,{
       scale:2.5,
       useCORS:true,
@@ -1158,12 +1155,12 @@ async function exportPDF(){
     outer: for(let y=canvas.height-1;y>=0;y--){
       for(let x=0;x<canvas.width;x++){
         const i=(y*canvas.width+x)*4;
-        if(px[i]<250||px[i+1]<250||px[i+2]<250){lastRow=y;break outer;}
+        if(px[i]<245||px[i+1]<245||px[i+2]<245){lastRow=y;break outer;}
       }
     }
     const trimmed=document.createElement('canvas');
     trimmed.width=canvas.width;
-    trimmed.height=lastRow+4;
+    trimmed.height=lastRow+2;
     trimmed.getContext('2d').drawImage(canvas,0,0);
     const imgData=trimmed.toDataURL('image/png');
     const {jsPDF}=window.jspdf;
