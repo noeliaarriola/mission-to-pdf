@@ -543,7 +543,8 @@ p,li{text-wrap:pretty}
 }
 .isec-btn:hover{background:#f5f0ea;border-color:#b8b0a6;color:#1c1c1e;transform:scale(1.08)}
 @media(max-width:899px){.isec-ctrl{opacity:1}}
-@media print{.isec-ctrl{display:none!important}}
+@media print{
+  .no-print{display:none!important;}.isec-ctrl{display:none!important}}
 
 
 
@@ -1126,10 +1127,16 @@ async function exportPDF(){
     const clone=el.cloneNode(true);
     clone.style.cssText='position:fixed;left:-9999px;top:0;width:'+el.offsetWidth+'px;height:auto;overflow:visible;border-radius:0;box-shadow:none;z-index:-1;';
     document.body.appendChild(clone);
+    // hide interactive-only elements in clone
+    clone.querySelectorAll('.no-print').forEach(function(el){el.style.display='none';});
     // wait for images
     await new Promise(function(r){setTimeout(r,80)});
     const fullW=clone.scrollWidth;
-    const fullH=clone.scrollHeight;
+    // use footer bottom to avoid blank space
+    const footer=clone.querySelector('.ifooter')||clone.querySelector('footer');
+    const fullH=footer
+      ? Math.ceil(footer.getBoundingClientRect().bottom - clone.getBoundingClientRect().top + 8)
+      : clone.scrollHeight;
     const canvas=await html2canvas(clone,{
       scale:2.5,
       useCORS:true,
@@ -1141,13 +1148,27 @@ async function exportPDF(){
       scrollX:0,
       scrollY:0,
       windowWidth:fullW,
-      windowHeight:fullH+200
+      windowHeight:fullH
     });
     document.body.removeChild(clone);
-    const imgData=canvas.toDataURL('image/png');
+    // trim bottom whitespace: scan rows from bottom until non-white pixel
+    const ctx2=canvas.getContext('2d');
+    const px=ctx2.getImageData(0,0,canvas.width,canvas.height).data;
+    let lastRow=canvas.height-1;
+    outer: for(let y=canvas.height-1;y>=0;y--){
+      for(let x=0;x<canvas.width;x++){
+        const i=(y*canvas.width+x)*4;
+        if(px[i]<250||px[i+1]<250||px[i+2]<250){lastRow=y;break outer;}
+      }
+    }
+    const trimmed=document.createElement('canvas');
+    trimmed.width=canvas.width;
+    trimmed.height=lastRow+4;
+    trimmed.getContext('2d').drawImage(canvas,0,0);
+    const imgData=trimmed.toDataURL('image/png');
     const {jsPDF}=window.jspdf;
     const pdfW=210;
-    const pdfH=Math.ceil((canvas.height/canvas.width)*pdfW);
+    const pdfH=Math.ceil((trimmed.height/trimmed.width)*pdfW);
     const pdf=new jsPDF({
       orientation:'portrait',
       unit:'mm',
@@ -1308,7 +1329,7 @@ function render(){
       +(typeLabel?'<span class="icontrib-type">'+typeLabel+'</span>':'')
       +keyDisplay
       +'</div>'
-      +(copyBtn?'<div class="icontrib-btn-row">'+copyBtn+'</div>':'')
+      +(copyBtn?'<div class="icontrib-btn-row no-print">'+copyBtn+'</div>':'')
       +'</div>';
   }
 
