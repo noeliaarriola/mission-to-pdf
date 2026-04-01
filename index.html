@@ -1138,31 +1138,39 @@ async function exportPDF(){
       var url=bg.replace(/^url\(["']?/,'').replace(/["']?\)$/,'');
       // load image and crop to div dimensions using canvas
       await new Promise(function(res){
-        var tmpImg=new Image();
-        tmpImg.crossOrigin='anonymous';
-        tmpImg.onload=function(){
-          var dw=div.offsetWidth||680;
-          var dh=div.offsetHeight||300;
-          var iw=tmpImg.naturalWidth;
-          var ih=tmpImg.naturalHeight;
-          // cover crop: scale so image fills dw x dh, centered
-          var scale=Math.max(dw/iw, dh/ih);
-          var sw=dw/scale, sh=dh/scale;
-          var sx=(iw-sw)/2, sy=(ih-sh)/2;
-          var cc=document.createElement('canvas');
-          cc.width=dw; cc.height=dh;
-          cc.getContext('2d').drawImage(tmpImg,sx,sy,sw,sh,0,0,dw,dh);
-          var cropped=cc.toDataURL('image/jpeg',0.92);
+        var done=false;
+        function finish(croppedSrc){
+          if(done)return; done=true;
           div.style.backgroundImage='none';
           div.style.backgroundSize='';
           div.style.backgroundPosition='';
           var img=document.createElement('img');
-          img.src=cropped;
+          img.src=croppedSrc||url;
           img.style.cssText='width:100%;height:100%;display:block;';
           div.appendChild(img);
           res();
+        }
+        // timeout fallback — if image doesn't load in 3s, use as-is
+        var t=setTimeout(function(){finish(url);},3000);
+        var tmpImg=new Image();
+        // do NOT set crossOrigin for base64 — causes issues on iOS
+        tmpImg.onload=function(){
+          clearTimeout(t);
+          try{
+            var dw=div.offsetWidth||680;
+            var dh=div.offsetHeight||300;
+            var iw=tmpImg.naturalWidth||dw;
+            var ih=tmpImg.naturalHeight||dh;
+            var scale=Math.max(dw/iw,dh/ih);
+            var sw=dw/scale, sh=dh/scale;
+            var sx=(iw-sw)/2, sy=(ih-sh)/2;
+            var cc=document.createElement('canvas');
+            cc.width=dw; cc.height=dh;
+            cc.getContext('2d').drawImage(tmpImg,sx,sy,sw,sh,0,0,dw,dh);
+            finish(cc.toDataURL('image/jpeg',0.92));
+          }catch(err){finish(url);}
         };
-        tmpImg.onerror=function(){res();};
+        tmpImg.onerror=function(){clearTimeout(t);finish(url);};
         tmpImg.src=url;
       });
     }
