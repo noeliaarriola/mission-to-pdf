@@ -605,7 +605,7 @@ p,li{text-wrap:pretty}
   }
 }
 </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dom-to-image-more@3.4.0/dist/dom-to-image-more.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
@@ -1129,90 +1129,44 @@ async function exportPDF(){
     document.body.appendChild(clone);
     // hide interactive-only elements in clone
     clone.querySelectorAll('.no-print').forEach(function(el){el.style.display='none';});
-    // crop cover images manually (html2canvas ignores object-fit)
-    var coverDivs=Array.from(clone.querySelectorAll('.icover'));
-    for(var ci=0;ci<coverDivs.length;ci++){
-      var div=coverDivs[ci];
-      var bg=div.style.backgroundImage;
-      if(!bg||bg==='none')continue;
-      var url=bg.replace(/^url\(["']?/,'').replace(/["']?\)$/,'');
-      // load image and crop to div dimensions using canvas
-      await new Promise(function(res){
-        var done=false;
-        function finish(croppedSrc){
-          if(done)return; done=true;
-          div.style.backgroundImage='none';
-          div.style.backgroundSize='';
-          div.style.backgroundPosition='';
-          var img=document.createElement('img');
-          img.src=croppedSrc||url;
-          img.style.cssText='width:100%;height:100%;display:block;';
-          div.appendChild(img);
-          res();
-        }
-        // timeout fallback — if image doesn't load in 3s, use as-is
-        var t=setTimeout(function(){finish(url);},3000);
-        var tmpImg=new Image();
-        // do NOT set crossOrigin for base64 — causes issues on iOS
-        tmpImg.onload=function(){
-          clearTimeout(t);
-          try{
-            var dw=div.offsetWidth||680;
-            var dh=div.offsetHeight||300;
-            var iw=tmpImg.naturalWidth||dw;
-            var ih=tmpImg.naturalHeight||dh;
-            var scale=Math.max(dw/iw,dh/ih);
-            var sw=dw/scale, sh=dh/scale;
-            var sx=(iw-sw)/2, sy=(ih-sh)/2;
-            var cc=document.createElement('canvas');
-            cc.width=dw; cc.height=dh;
-            cc.getContext('2d').drawImage(tmpImg,sx,sy,sw,sh,0,0,dw,dh);
-            finish(cc.toDataURL('image/jpeg',0.92));
-          }catch(err){finish(url);}
-        };
-        tmpImg.onerror=function(){clearTimeout(t);finish(url);};
-        tmpImg.src=url;
-      });
-    }
+    // dom-to-image handles background-image:cover natively
     // wait for images
     await new Promise(function(r){setTimeout(r,80)});
     const fullW=clone.scrollWidth;
     // use footer bottom to avoid blank space
     const fullH=clone.scrollHeight;
-    const canvas=await html2canvas(clone,{
-      scale:2.5,
-      useCORS:true,
-      allowTaint:true,
-      backgroundColor:'#ffffff',
-      logging:false,
-      width:fullW,
-      height:fullH,
-      scrollX:0,
-      scrollY:0,
-      windowWidth:fullW,
-      windowHeight:fullH
+    const scale=2.5;
+    const dataUrl=await domtoimage.toPng(clone,{
+      width:fullW*scale,
+      height:fullH*scale,
+      style:{transform:'scale('+scale+')',transformOrigin:'top left',width:fullW+'px',height:fullH+'px'},
+      bgcolor:'#ffffff'
     });
     document.body.removeChild(clone);
-    // trim bottom whitespace: scan rows from bottom until non-white pixel
-    const ctx2=canvas.getContext('2d');
-    const px=ctx2.getImageData(0,0,canvas.width,canvas.height).data;
-    // detect background color from bottom-right corner
-    const bgR=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4];
-    const bgG=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4+1];
-    const bgB=px[((canvas.height-1)*canvas.width+(canvas.width-1))*4+2];
+    // trim bottom via canvas
+    const tmpC=document.createElement('canvas');
+    const tmpCtx=tmpC.getContext('2d');
+    const tmpImg2=new Image();
+    await new Promise(function(r){tmpImg2.onload=r;tmpImg2.src=dataUrl;});
+    tmpC.width=tmpImg2.width; tmpC.height=tmpImg2.height;
+    tmpCtx.drawImage(tmpImg2,0,0);
+    const px=tmpCtx.getImageData(0,0,tmpC.width,tmpC.height).data;
+    const bgR=px[((tmpC.height-1)*tmpC.width+(tmpC.width-1))*4];
+    const bgG=px[((tmpC.height-1)*tmpC.width+(tmpC.width-1))*4+1];
+    const bgB=px[((tmpC.height-1)*tmpC.width+(tmpC.width-1))*4+2];
     let lastRow=0;
-    for(let y=canvas.height-1;y>=0;y--){
+    for(let y=tmpC.height-1;y>=0;y--){
       let rowDiff=false;
-      for(let x=0;x<canvas.width;x++){
-        const i=(y*canvas.width+x)*4;
+      for(let x=0;x<tmpC.width;x++){
+        const i=(y*tmpC.width+x)*4;
         if(Math.abs(px[i]-bgR)>8||Math.abs(px[i+1]-bgG)>8||Math.abs(px[i+2]-bgB)>8){rowDiff=true;break;}
       }
       if(rowDiff){lastRow=y;break;}
     }
     const trimmed=document.createElement('canvas');
-    trimmed.width=canvas.width;
+    trimmed.width=tmpC.width;
     trimmed.height=lastRow+1;
-    trimmed.getContext('2d').drawImage(canvas,0,0);
+    trimmed.getContext('2d').drawImage(tmpC,0,0);
     const imgData=trimmed.toDataURL('image/png');
     const {jsPDF}=window.jspdf;
     const pdfW=210;
