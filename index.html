@@ -1118,9 +1118,8 @@ function wrapSec(id, html){
 }
 
 async function exportPDF(){
-  const btn=document.getElementById('btnPdf');
-  btn.disabled=true;
-  btn.textContent='Gerando…';
+  const btn=event&&event.target?event.target:null;
+  if(btn){btn.disabled=true;btn.textContent='Gerando…';}
   try{
     const el=document.getElementById('informativo');
     // clone into body with no clipping constraints
